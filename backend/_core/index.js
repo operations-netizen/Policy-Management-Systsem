@@ -104,7 +104,7 @@ async function startServer() {
         res.status(500).json({ message: "Internal server error" });
     });
 
-    const port = Number.parseInt(process.env.PORT || "3000", 10);
+    const port = Number.parseInt(process.env.PORT || "3001", 10);
     server.listen(port, () => {
         logger.info(`[Server] Listening on port ${port}`);
     });

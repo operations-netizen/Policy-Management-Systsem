@@ -191,15 +191,15 @@ export default function UserManagement() {
   const roleLabel = (role) => {
     switch (role) {
       case "admin":
-        return "Super Admin";
-      case "hod":
         return "Admin";
+      case "hod":
+        return "HOD";
       case "account":
         return "Account";
       case "employee":
-        return "User";
+        return "Employee";
       default:
-        return "User";
+        return "Employee";
     }
   };
 
