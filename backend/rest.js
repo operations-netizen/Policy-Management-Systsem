@@ -2257,22 +2257,35 @@ export function createRestRouter() {
                 req.query,
             );
             const monthsBack = input.months ?? 6;
-            const users =
+            const scopedEmployees =
                 ctxUser.role === "admin"
-                    ? await db.getAllUsers()
-                    : await db.getUsersByHod(ctxUser.id);
-            const userIds = users.map((user) => user._id.toString());
+                    ? (await db.getAllUsers()).filter(
+                        (user) => user.role === "employee" && user.isEmployee !== false,
+                    )
+                    : (await db.getUsersByHod(ctxUser.id)).filter(
+                        (user) => user.role === "employee" && user.isEmployee !== false,
+                    );
+            const scopedEmployeeIds = scopedEmployees.map((user) => user._id.toString());
             const [creditRequests, walletTransactions, redemptions] = await Promise.all([
-                ctxUser.role === "admin" ? db.getAllCreditRequests() : db.getCreditRequestsByHod(ctxUser.id),
+                ctxUser.role === "admin"
+                    ? db.getAllCreditRequests()
+                    : db.getCreditRequestsByUserIds(scopedEmployeeIds),
                 ctxUser.role === "admin"
                     ? db.getAllWalletTransactions()
-                    : db.getWalletTransactionsByUserIds(userIds),
+                    : db.getWalletTransactionsByUserIds(scopedEmployeeIds),
                 ctxUser.role === "admin"
                     ? db.getAllRedemptionRequests()
-                    : db.getRedemptionRequestsByUserIds(userIds),
+                    : db.getRedemptionRequestsByUserIds(scopedEmployeeIds),
             ]);
+            const scopedEmployeeIdSet = new Set(scopedEmployeeIds);
+            const scopedCreditRequests =
+                ctxUser.role === "admin"
+                    ? creditRequests
+                    : creditRequests.filter((request) =>
+                        scopedEmployeeIdSet.has(request.userId?.toString?.() || request.userId),
+                    );
             const userCurrencyMap = new Map(
-                users.map((user) => [user._id.toString(), getUserCurrency(user)]),
+                scopedEmployees.map((user) => [user._id.toString(), getUserCurrency(user)]),
             );
             const monthLabels = [];
             const now = new Date();
@@ -2328,7 +2341,7 @@ export function createRestRouter() {
                 (item) => item.amount,
                 (item) => item.currency || userCurrencyMap.get(item.userId),
             );
-            const policyCounts = creditRequests
+            const policyCounts = scopedCreditRequests
                 .filter((request) => request.type === "policy" && request.policyId)
                 .reduce((acc, request) => {
                     acc[request.policyId] = (acc[request.policyId] || 0) + 1;
@@ -2345,7 +2358,7 @@ export function createRestRouter() {
                 }))
                 .sort((a, b) => b.requests - a.requests)
                 .slice(0, 5);
-            const employeeTypeCounts = users.reduce((acc, user) => {
+            const employeeTypeCounts = scopedEmployees.reduce((acc, user) => {
                 const type = user.employeeType || "unknown";
                 acc[type] = (acc[type] || 0) + 1;
                 return acc;
@@ -2371,8 +2384,8 @@ export function createRestRouter() {
                     totalCreditsByCurrency,
                     totalRedemptions,
                     totalRedemptionsByCurrency,
-                    pendingApprovals: creditRequests.filter((r) => r.status === "pending_approval").length,
-                    pendingSignatures: creditRequests.filter((r) => r.status === "pending_signature").length,
+                    pendingApprovals: scopedCreditRequests.filter((r) => r.status === "pending_approval").length,
+                    pendingSignatures: scopedCreditRequests.filter((r) => r.status === "pending_signature").length,
                     pendingRedemptions: redemptions.filter((r) => r.status === "pending").length,
                 },
                 creditsByMonth,

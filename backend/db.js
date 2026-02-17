@@ -464,6 +464,18 @@ export async function getCreditRequestsByHod(hodId) {
     const userCurrencyMap = await resolveCurrencyByUserIds(requests.map((request) => request.userId));
     return requests.map((request) => normalizeCreditRequestCurrency(request, userCurrencyMap));
 }
+export async function getCreditRequestsByUserIds(userIds) {
+    await ensureConnection();
+    const uniqueUserIds = Array.from(new Set((userIds || []).filter(Boolean).map((id) => id.toString())));
+    if (uniqueUserIds.length === 0) {
+        return [];
+    }
+    const requests = await CreditRequest.find({ userId: { $in: uniqueUserIds } })
+        .sort({ createdAt: -1 })
+        .lean();
+    const userCurrencyMap = await resolveCurrencyByUserIds(uniqueUserIds);
+    return requests.map((request) => normalizeCreditRequestCurrency(request, userCurrencyMap));
+}
 export async function getCreditRequestsByInitiator(initiatorId) {
     await ensureConnection();
     const requests = await CreditRequest.find({ initiatorId }).sort({ createdAt: -1 }).lean();
