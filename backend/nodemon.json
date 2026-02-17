@@ -1,0 +1,21 @@
+{
+  "watch": [
+    "_core",
+    "rest.js",
+    "db.js",
+    "models.js",
+    "ghl.js",
+    "shared"
+  ],
+  "ignore": [
+    "../frontend/**",
+    "../database/**",
+    "node_modules/**",
+    "dist/**",
+    "../**/vite-cache*/**",
+    "../**/.vite-cache/**"
+  ],
+  "ext": "js,mjs,cjs,json",
+  "exec": "node _core/index.js"
+}
+ 

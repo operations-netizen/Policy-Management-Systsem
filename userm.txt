@@ -1,0 +1,15 @@
+In the System After user creation , at Employee Management panel when adding user the component opens and show again the user creation option
+But user is already created so repected Admin and Hod who created the users can add there users and admin can add all users in the system if wanted to do
+add a User adding drop down to the user adding function button if HOD and admin wanted to add already created user 
+
+
+As already Employee Management features are here : 
+
+
+Full CRUD operations
+Employee type selection
+HOD assignment
+Initiator assignment for freelancers
+Policy assignment drawer
+Beautiful right-side drawer UI
+

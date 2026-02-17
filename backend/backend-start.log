@@ -1,0 +1,8 @@
+
+> incentive-management-backend@1.0.0 start
+> cross-env NODE_ENV=production node dist/index.js
+
+[dotenv@17.2.3] injecting env (13) from .env -- tip: 🔄 add secrets lifecycle management: https://dotenvx.com/ops
+[MongoDB] Connected successfully
+[Vite] Backend Vite middleware disabled. Using external frontend dev server.
+[Server] Listening on port 3001

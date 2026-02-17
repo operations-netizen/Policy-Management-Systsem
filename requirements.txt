@@ -1,0 +1,267 @@
+# Incentive Management System - Dependencies
+
+## System Requirements
+- Node.js >= 18.0.0
+- MongoDB >= 5.0.0
+- npm >= 9.0.0 or pnpm >= 8.0.0
+
+## Frontend Dependencies (React Application)
+
+### Core Framework
+- react: ^19.0.0
+- react-dom: ^19.0.0
+- vite: ^6.0.0
+
+### Routing & State
+- wouter: ^3.7.1
+- @tanstack/react-query: ^5.0.0
+
+### API Client
+- Native fetch (no additional dependency)
+
+### UI Components (shadcn/ui)
+- @radix-ui/react-dialog: ^1.0.0
+- @radix-ui/react-dropdown-menu: ^2.0.0
+- @radix-ui/react-select: ^2.0.0
+- @radix-ui/react-checkbox: ^1.0.0
+- @radix-ui/react-label: ^2.0.0
+- @radix-ui/react-slot: ^1.0.0
+- @radix-ui/react-tooltip: ^1.0.0
+- @radix-ui/react-tabs: ^1.0.0
+- @radix-ui/react-switch: ^1.0.0
+- @radix-ui/react-sheet: ^1.0.0
+
+### Styling
+- tailwindcss: ^4.0.0
+- tailwindcss-animate: ^1.0.0
+- class-variance-authority: ^0.7.0
+- clsx: ^2.0.0
+- tailwind-merge: ^2.0.0
+
+### Icons & UI Utilities
+- lucide-react: ^0.400.0
+- sonner: ^1.0.0 (Toast notifications)
+
+### Form Handling
+- react-hook-form: ^7.0.0
+- zod: ^3.0.0
+
+### Utilities
+- date-fns: ^3.0.0
+- streamdown: ^1.0.0 (Markdown rendering)
+
+## Backend Dependencies (Node.js + Express)
+
+### Core Framework
+- express: ^4.18.0
+
+### Database
+- mongodb: ^6.0.0
+- mongoose: ^8.0.0 (Optional ORM)
+- drizzle-orm: ^0.30.0 (Type-safe ORM)
+
+### Authentication
+- jsonwebtoken: ^9.0.0
+- bcryptjs: ^2.4.3
+- cookie-parser: ^1.4.6
+
+### Validation
+- zod: ^3.0.0
+
+### HTTP & Middleware
+- cors: ^2.8.5
+- helmet: ^7.0.0 (Security headers)
+- morgan: ^1.10.0 (Logging)
+
+### File Storage
+- @aws-sdk/client-s3: ^3.0.0 (S3 storage)
+- multer: ^1.4.5 (File uploads)
+
+### External Integrations
+- axios: ^1.6.0 (HTTP client for GHL)
+- nodemailer: ^6.9.0 (Email notifications)
+
+### Development Tools
+- nodemon: ^3.0.0
+- vitest: ^1.0.0
+
+## Database Tools
+- drizzle-kit: ^0.20.0 (Schema migrations)
+- mongodb-memory-server: ^9.0.0 (Testing)
+
+## Installation Commands
+
+### Install Frontend Dependencies
+```bash
+cd frontend
+npm install
+```
+
+### Install Backend Dependencies
+```bash
+cd backend
+npm install
+```
+
+### Install Database Dependencies
+```bash
+cd database
+npm install
+```
+
+## Package.json Scripts
+
+### Frontend (frontend/package.json)
+```json
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  }
+}
+```
+
+### Backend (backend/package.json)
+```json
+{
+  "scripts": {
+    "dev": "NODE_ENV=development node --watch _core/index.js",
+    "build": "esbuild _core/index.js --platform=node --packages=external --bundle --format=esm --outdir=dist --alias:@shared=./shared",
+    "start": "NODE_ENV=production node dist/index.js",
+    "test": "vitest run"
+  }
+}
+```
+
+## Environment Variables Required
+
+### Backend (backend/.env)
+```
+MONGODB_URI=mongodb://localhost:27017/incentive-system
+JWT_SECRET=your-secret-key-min-32-characters
+PORT=3000
+NODE_ENV=development
+GHL_API_KEY=optional
+GHL_LOCATION_ID=optional
+GHL_WEBHOOK_SECRET=optional
+```
+
+### Frontend (frontend/.env)
+```
+VITE_OAUTH_PORTAL_URL=
+VITE_APP_ID=
+VITE_FRONTEND_FORGE_API_URL=
+VITE_FRONTEND_FORGE_API_KEY=
+VITE_ANALYTICS_ENDPOINT=
+VITE_ANALYTICS_WEBSITE_ID=
+```
+
+## Development Tools (Optional but Recommended)
+
+### Code Quality
+- eslint: ^8.0.0
+- prettier: ^3.0.0
+- husky: ^8.0.0 (Git hooks)
+- lint-staged: ^15.0.0
+
+### Testing
+- @testing-library/react: ^14.0.0
+- @testing-library/jest-dom: ^6.0.0
+- @vitest/ui: ^1.0.0
+
+### Database Management
+- MongoDB Compass (GUI)
+- Robo 3T / Studio 3T
+
+### API Testing
+- Postman
+- Thunder Client (VS Code extension)
+
+## Browser Support
+- Chrome >= 90
+- Firefox >= 88
+- Safari >= 14
+- Edge >= 90
+
+## Node.js Version Management
+
+### Using nvm (recommended)
+```bash
+# Install specific Node version
+nvm install 18
+nvm use 18
+
+# Set default
+nvm alias default 18
+```
+
+### Using volta
+```bash
+# Install Node.js
+volta install node@18
+```
+
+## MongoDB Setup
+
+### Local Installation
+```bash
+# macOS
+brew tap mongodb/brew
+brew install mongodb-community@6.0
+
+# Ubuntu
+sudo apt-get install mongodb-org
+
+# Windows
+Download from https://www.mongodb.com/try/download/community
+```
+
+### Cloud (MongoDB Atlas)
+1. Create account at https://www.mongodb.com/cloud/atlas
+2. Create free cluster
+3. Get connection string
+4. Update MONGODB_URI in backend/.env
+
+## Troubleshooting
+
+### Clear node_modules and reinstall (frontend)
+```bash
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
+```
+
+### Clear node_modules and reinstall (backend)
+```bash
+cd backend
+rm -rf node_modules package-lock.json
+npm install
+```
+
+### Update all dependencies
+```bash
+npm update
+```
+
+### Check for outdated packages
+```bash
+npm outdated
+```
+
+### Audit for vulnerabilities
+```bash
+npm audit
+npm audit fix
+```
+
+## Production Dependencies Only
+
+### Install without dev dependencies (backend)
+```bash
+cd backend
+npm install --production
+```
+
+## License
+All dependencies are used under their respective licenses (mostly MIT).

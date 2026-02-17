@@ -1,0 +1,9 @@
+#env file
+
+.env
+.env.example
+
+# Vite caches
+vite-cache
+vite-cache-backend
+.vite-cache
