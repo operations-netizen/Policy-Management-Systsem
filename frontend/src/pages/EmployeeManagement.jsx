@@ -20,7 +20,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { getUserCurrency } from "@/lib/currency";
 import { KpiCard, PageHeader, PageShell } from "@/components/layout/PageLayout";
   
-const EMPLOYEE_CARD_GRID_CLASS = "grid auto-rows-fr grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3";
+const EMPLOYEE_CARD_GRID_CLASS = "grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3";
  
 const employeeTypeLabel = (type) => {
   switch (type) {
@@ -959,8 +959,9 @@ export default function EmployeeManagement() {
         <div className={EMPLOYEE_CARD_GRID_CLASS}>
           {filteredEmployees.map((employee) => {
             const initiatablePolicyAssignments = getInitiatablePolicyAssignments(employee);
-            const canInitiate = canInitiateForEmployee(employee);
-            const hasCardActions = canInitiate || initiatablePolicyAssignments.length > 0;
+            const canInitiateFreelance = canInitiateForEmployee(employee);
+            const canInitiatePolicy = initiatablePolicyAssignments.length > 0;
+            const hasCardActions = canInitiateFreelance || canInitiatePolicy;
             const initiatorsText = employee.employeeType?.startsWith("freelancer")
               ? getInitiatorNames(employee).join(", ") || "-"
               : "-";
@@ -974,7 +975,7 @@ export default function EmployeeManagement() {
             const canSubmitPolicyAssignment = Boolean(assignmentForm.policyId) && assignmentForm.initiatorIds.length > 0;
 
             return (
-            <Card key={employee._id.toString()} className="card-hover h-[460px] overflow-hidden border-border/80">
+            <Card key={employee._id.toString()} className="card-hover overflow-hidden border-border/80">
               <CardHeader className="pb-2">
                 <div
                   className={`grid items-start overflow-hidden ${
@@ -1276,7 +1277,7 @@ export default function EmployeeManagement() {
                   )}
                 </div>
               </CardHeader>
-              <CardContent className="flex h-full flex-1 flex-col gap-4 overflow-hidden">
+              <CardContent className="flex flex-col gap-4 overflow-hidden">
                 <div className="flex min-h-[62px] flex-wrap content-start items-start gap-2">
                   <Badge variant="outline" className="rounded-full px-3 py-1 text-xs">
                     {employeeTypeLabel(employee.employeeType)}
@@ -1289,7 +1290,7 @@ export default function EmployeeManagement() {
                   </Badge>
                 </div>
 
-                <div className="grid flex-1 content-start grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                <div className="grid content-start grid-cols-2 gap-x-3 gap-y-2 text-sm">
                   <span className="text-muted-foreground">HOD</span>
                   <span className="min-w-0 truncate text-right font-medium" title={getHodDisplayName(employee)}>
                     {getHodDisplayName(employee)}
@@ -1311,40 +1312,32 @@ export default function EmployeeManagement() {
                   </span>
                 </div>
 
-                <div className="mt-auto h-[66px] border-t pt-3">
-                  {hasCardActions ? (
-                    <div className="grid grid-cols-2 gap-3">
-                      {initiatablePolicyAssignments.length > 0 ? (
+                {hasCardActions && (
+                  <div className="mt-2 border-t pt-3">
+                    <div className={`grid gap-3 ${canInitiatePolicy && canInitiateFreelance ? "grid-cols-2" : "grid-cols-1"}`}>
+                      {canInitiatePolicy && (
                         <Button
                           variant="outline"
                           size="sm"
                           className="h-9 w-full min-w-0 whitespace-nowrap px-3"
                           onClick={() => openPolicyDialog(employee)}
                         >
-                        Initiate Policy
+                          Initiate Policy
                         </Button>
-                      ) : (
-                        <div />
                       )}
-                      {canInitiate ? (
+                      {canInitiateFreelance && (
                         <Button
                           variant="outline"
                           size="sm"
                           className="h-9 w-full min-w-0 whitespace-nowrap px-3"
                           onClick={() => openInitiateDialog(employee)}
                         >
-                        Initiate Freelance
+                          Initiate Freelance
                         </Button>
-                      ) : (
-                        <div />
                       )}
                     </div>
-                  ) : (
-                    <div className="flex h-[36px] items-center justify-center">
-                      <span className="text-xs font-medium text-muted-foreground">No actions available</span>
-                    </div>
-                  )}
                   </div>
+                )}
               </CardContent>
             </Card>
           );
