@@ -259,15 +259,18 @@ export default function Login() {
         <div className="relative z-10 flex flex-col justify-between p-12 w-full">
           {/* Top Brand */}
           <div className="flex flex-col items-start">
-            <p className="text-4xl font-semibold text-white tracking-wide">DWSG</p>
+            <p className="text-5xl font-semibold text-white tracking-[0.18em]">COMPAZIO</p>
+            <p className="mt-5 text-lg font-medium text-white/85 tracking-[0.28em]">
+              CONNECT.COLLABORATE.COMPLETE
+            </p>
           </div>
 
           {/* Middle content (same text as Login 1) */}
           <div className="flex flex-col items-start text-left">
             <h2 className="text-4xl font-bold text-white">Policy Management System</h2>
             <p className="text-lg text-white/80 mt-4 max-w-md">
-              Welcome to our policy management system. Use this space to manage policies, submit and track requests,
-              and get a clear view of policies across the company.
+              Welcome to our policy management system. Use this space to manage policies, Incentives submit and track requests,
+              and get a clear view of your tractions
             </p>
 
             <div className="mt-8">
