@@ -1032,7 +1032,7 @@ export default function EmployeeManagement() {
                             <Settings2 className="h-4 w-4" />
                           </Button>
                         </SheetTrigger>
-                        <SheetContent className="w-full p-0 sm:max-w-[620px]">
+                        <SheetContent className="h-dvh w-full overflow-hidden p-0 sm:max-w-[620px]">
                           <SheetHeader className="border-b px-6 py-5">
                             <SheetTitle className="text-xl">Assign Policy</SheetTitle>
                             <SheetDescription>
@@ -1049,7 +1049,7 @@ export default function EmployeeManagement() {
                           </SheetHeader>
 
                           <div className="flex min-h-0 flex-1 flex-col">
-                            <ScrollArea className="flex-1">
+                            <ScrollArea className="min-h-0 flex-1">
                               <div className="space-y-6 px-6 py-5">
                                 <div className="grid gap-4 sm:grid-cols-2">
                                   <div className="space-y-2">
