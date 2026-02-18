@@ -936,6 +936,16 @@ async function getCreditRequestsByHod(hodId) {
   const userCurrencyMap = await resolveCurrencyByUserIds(requests.map((request) => request.userId));
   return requests.map((request) => normalizeCreditRequestCurrency(request, userCurrencyMap));
 }
+async function getCreditRequestsByUserIds(userIds) {
+  await ensureConnection();
+  const uniqueUserIds = Array.from(new Set((userIds || []).filter(Boolean).map((id) => id.toString())));
+  if (uniqueUserIds.length === 0) {
+    return [];
+  }
+  const requests = await CreditRequest.find({ userId: { $in: uniqueUserIds } }).sort({ createdAt: -1 }).lean();
+  const userCurrencyMap = await resolveCurrencyByUserIds(uniqueUserIds);
+  return requests.map((request) => normalizeCreditRequestCurrency(request, userCurrencyMap));
+}
 async function getCreditRequestsByInitiator(initiatorId) {
   await ensureConnection();
   const requests = await CreditRequest.find({ initiatorId }).sort({ createdAt: -1 }).lean();
@@ -4392,15 +4402,23 @@ function createRestRouter() {
         req.query
       );
       const monthsBack = input.months ?? 6;
-      const users = ctxUser.role === "admin" ? await getAllUsers() : await getUsersByHod(ctxUser.id);
-      const userIds = users.map((user) => user._id.toString());
+      const scopedEmployees = ctxUser.role === "admin" ? (await getAllUsers()).filter(
+        (user) => user.role === "employee" && user.isEmployee !== false
+      ) : (await getUsersByHod(ctxUser.id)).filter(
+        (user) => user.role === "employee" && user.isEmployee !== false
+      );
+      const scopedEmployeeIds = scopedEmployees.map((user) => user._id.toString());
       const [creditRequests, walletTransactions, redemptions] = await Promise.all([
-        ctxUser.role === "admin" ? getAllCreditRequests() : getCreditRequestsByHod(ctxUser.id),
-        ctxUser.role === "admin" ? getAllWalletTransactions() : getWalletTransactionsByUserIds(userIds),
-        ctxUser.role === "admin" ? getAllRedemptionRequests() : getRedemptionRequestsByUserIds(userIds)
+        ctxUser.role === "admin" ? getAllCreditRequests() : getCreditRequestsByUserIds(scopedEmployeeIds),
+        ctxUser.role === "admin" ? getAllWalletTransactions() : getWalletTransactionsByUserIds(scopedEmployeeIds),
+        ctxUser.role === "admin" ? getAllRedemptionRequests() : getRedemptionRequestsByUserIds(scopedEmployeeIds)
       ]);
+      const scopedEmployeeIdSet = new Set(scopedEmployeeIds);
+      const scopedCreditRequests = ctxUser.role === "admin" ? creditRequests : creditRequests.filter(
+        (request) => scopedEmployeeIdSet.has(request.userId?.toString?.() || request.userId)
+      );
       const userCurrencyMap = new Map(
-        users.map((user) => [user._id.toString(), getUserCurrency(user)])
+        scopedEmployees.map((user) => [user._id.toString(), getUserCurrency(user)])
       );
       const monthLabels = [];
       const now = /* @__PURE__ */ new Date();
@@ -4455,7 +4473,7 @@ function createRestRouter() {
         (item) => item.amount,
         (item) => item.currency || userCurrencyMap.get(item.userId)
       );
-      const policyCounts = creditRequests.filter((request) => request.type === "policy" && request.policyId).reduce((acc, request) => {
+      const policyCounts = scopedCreditRequests.filter((request) => request.type === "policy" && request.policyId).reduce((acc, request) => {
         acc[request.policyId] = (acc[request.policyId] || 0) + 1;
         return acc;
       }, {});
@@ -4467,7 +4485,7 @@ function createRestRouter() {
         name: policyMap.get(policyId) || "Unknown Policy",
         requests: policyCounts[policyId]
       })).sort((a, b) => b.requests - a.requests).slice(0, 5);
-      const employeeTypeCounts = users.reduce((acc, user) => {
+      const employeeTypeCounts = scopedEmployees.reduce((acc, user) => {
         const type = user.employeeType || "unknown";
         acc[type] = (acc[type] || 0) + 1;
         return acc;
@@ -4493,8 +4511,8 @@ function createRestRouter() {
           totalCreditsByCurrency,
           totalRedemptions,
           totalRedemptionsByCurrency,
-          pendingApprovals: creditRequests.filter((r) => r.status === "pending_approval").length,
-          pendingSignatures: creditRequests.filter((r) => r.status === "pending_signature").length,
+          pendingApprovals: scopedCreditRequests.filter((r) => r.status === "pending_approval").length,
+          pendingSignatures: scopedCreditRequests.filter((r) => r.status === "pending_signature").length,
           pendingRedemptions: redemptions.filter((r) => r.status === "pending").length
         },
         creditsByMonth,
@@ -4857,7 +4875,7 @@ async function startServer() {
     logger.error("[API] Unexpected error:", error);
     res.status(500).json({ message: "Internal server error" });
   });
-  const port = Number.parseInt(process.env.PORT || "3000", 10);
+  const port = Number.parseInt(process.env.PORT || "3001", 10);
   server.listen(port, () => {
     logger.info(`[Server] Listening on port ${port}`);
   });
