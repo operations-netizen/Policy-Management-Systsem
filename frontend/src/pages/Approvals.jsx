@@ -79,6 +79,17 @@ const statusConfig = (status) => {
   }
 };
 
+const getRequestSortTime = (request) => {
+  const candidates = [request?.createdAt, request?.updatedAt, request?.submittedAt];
+  for (const value of candidates) {
+    const timestamp = value ? new Date(value).getTime() : NaN;
+    if (Number.isFinite(timestamp)) {
+      return timestamp;
+    }
+  }
+  return 0;
+};
+
 export default function Approvals() {
   const { user } = useAuth();
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -151,26 +162,9 @@ export default function Approvals() {
     });
   };
 
-  const sortedRequests = (pendingRequests || []).slice().sort((a, b) => {
-    const priority = {
-      pending_approval: 0,
-      pending_signature: 0,
-      pending_employee_approval: 1,
-      approved: 3,
-      rejected_by_hod: 4,
-      rejected_by_employee: 5,
-      rejected_by_user: 6,
-    };
-
-    const aScore = priority[a.status] ?? 99;
-    const bScore = priority[b.status] ?? 99;
-
-    if (aScore !== bScore) {
-      return aScore - bScore;
-    }
-
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
+  const sortedRequests = (pendingRequests || [])
+    .slice()
+    .sort((a, b) => getRequestSortTime(b) - getRequestSortTime(a));
 
   const pendingCount = (pendingRequests || []).filter((request) =>
     isManager
