@@ -2449,6 +2449,97 @@ var buildTimelineEntry = ({ step, role, actor, signatureId, message, metadata })
   at: /* @__PURE__ */ new Date()
 });
 var appendTimelineEntry = (existing, entry) => [...existing || [], entry];
+var normalizeTimelineDate = (value) => {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+};
+var mergeTimelineLogs = (...logs) => {
+  const entries = logs.flatMap((log) => Array.isArray(log) ? log : []);
+  if (entries.length === 0) {
+    return [];
+  }
+  const normalized = entries.map((entry, index) => ({
+    ...entry,
+    __index: index,
+    __at: normalizeTimelineDate(entry?.at)
+  }));
+  normalized.sort((a, b) => {
+    const aTime = a.__at?.getTime();
+    const bTime = b.__at?.getTime();
+    if (aTime !== void 0 && bTime !== void 0) {
+      if (aTime !== bTime) {
+        return aTime - bTime;
+      }
+      return a.__index - b.__index;
+    }
+    if (aTime !== void 0) {
+      return -1;
+    }
+    if (bTime !== void 0) {
+      return 1;
+    }
+    return a.__index - b.__index;
+  });
+  const seen = /* @__PURE__ */ new Set();
+  const deduped = [];
+  for (const entry of normalized) {
+    const key = [
+      entry?.step || "",
+      entry?.role || "",
+      entry?.actorId || "",
+      entry?.actorName || "",
+      entry?.actorEmail || "",
+      entry?.signatureId || "",
+      entry?.message || "",
+      entry.__at ? entry.__at.toISOString() : "",
+      entry?.metadata ? JSON.stringify(entry.metadata) : ""
+    ].join("|");
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    const { __index, __at, ...cleanEntry } = entry;
+    deduped.push({
+      ...cleanEntry,
+      at: __at || cleanEntry.at
+    });
+  }
+  return deduped;
+};
+var buildLegacyWalletCreditedEntry = (creditTxn) => {
+  const fallback = buildTimelineEntry({
+    step: "WALLET_CREDITED",
+    role: "system",
+    actor: { id: creditTxn?.userId },
+    message: "Wallet credited (legacy timeline reconstructed)",
+    metadata: {
+      amount: Number(creditTxn?.amount || 0),
+      currency: normalizeCurrency(creditTxn?.currency),
+      creditTransactionId: creditTxn?._id?.toString(),
+      creditRequestId: creditTxn?.creditRequestId?.toString?.() || creditTxn?.creditRequestId
+    }
+  });
+  const createdAt = normalizeTimelineDate(creditTxn?.createdAt);
+  if (createdAt) {
+    fallback.at = createdAt;
+  }
+  return fallback;
+};
+var buildCanonicalCreditLifecycleTimeline = async (creditTxn) => {
+  if (!creditTxn) {
+    return [];
+  }
+  const creditRequestId = creditTxn?.creditRequestId?.toString?.() || creditTxn?.creditRequestId;
+  const creditRequest = creditRequestId ? await getCreditRequestById(creditRequestId) : null;
+  let timeline = mergeTimelineLogs(creditRequest?.timelineLog, creditTxn?.timelineLog);
+  if (timeline.length === 0) {
+    timeline = [buildLegacyWalletCreditedEntry(creditTxn)];
+  }
+  return timeline;
+};
 function createRestRouter() {
   const router = express.Router();
   router.use(
@@ -3977,8 +4068,9 @@ function createRestRouter() {
       if (balanceBefore < amount) {
         throw BadRequestError("Insufficient balance");
       }
+      const canonicalCreditTimeline = await buildCanonicalCreditLifecycleTimeline(creditTxn);
       const timelineLog = appendTimelineEntry(
-        creditTxn.timelineLog,
+        canonicalCreditTimeline,
         buildTimelineEntry({
           step: "REDEMPTION_REQUESTED",
           role: "employee",
@@ -4013,7 +4105,8 @@ function createRestRouter() {
       });
       await updateWalletTransaction(creditTxn._id?.toString(), {
         redeemed: true,
-        redemptionRequestId: redemption._id?.toString()
+        redemptionRequestId: redemption._id?.toString(),
+        timelineLog
       });
       let pdfBuffer = null;
       try {
@@ -4132,8 +4225,11 @@ function createRestRouter() {
       if (normalizeCurrency(request.currency, expectedCurrency) !== expectedCurrency) {
         await updateRedemptionRequest(input.requestId, { currency: expectedCurrency });
       }
+      const sourceCreditTxn = request.creditTransactionId ? await getWalletTransactionById(request.creditTransactionId) : null;
+      const canonicalCreditTimeline = await buildCanonicalCreditLifecycleTimeline(sourceCreditTxn);
+      const baselineTimeline = mergeTimelineLogs(canonicalCreditTimeline, request.timelineLog);
       const timelineLog = appendTimelineEntry(
-        request.timelineLog,
+        baselineTimeline,
         buildTimelineEntry({
           step: "REDEMPTION_PROCESSED",
           role: ctxUser.role,
