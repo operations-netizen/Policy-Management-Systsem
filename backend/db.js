@@ -498,6 +498,18 @@ export async function updateCreditRequest(id, updates) {
     await ensureConnection();
     await CreditRequest.findByIdAndUpdate(id, { $set: updates });
 }
+
+export async function migrateLegacyPolicyPendingSignatures() {
+    await ensureConnection();
+    const result = await CreditRequest.updateMany(
+        { type: "policy", status: "pending_signature" },
+        { $set: { status: "pending_approval" } },
+    );
+    return {
+        matchedCount: result.matchedCount || 0,
+        modifiedCount: result.modifiedCount || 0,
+    };
+}
 // ==================== WALLET OPERATIONS ====================
 async function ensureWallet(userId) {
     await ensureConnection();

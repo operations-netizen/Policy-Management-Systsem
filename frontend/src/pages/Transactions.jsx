@@ -17,7 +17,7 @@ import { PageShell } from "@/components/layout/PageLayout";
 
 
 const statusLabels = {
-  pending_signature: "Pending Signature",
+  pending_signature: "Pending Approval",
   pending_approval: "Pending Approval",
   approved: "Approved",
   rejected_by_user: "Rejected by Employee",
@@ -452,6 +452,5 @@ export default function Transactions() {
     </PageShell>
   );
 }
-
 
 

@@ -174,7 +174,7 @@ const CreditRequestSchema = new Schema({
             'rejected_by_employee',
             'rejected_by_hod',
         ],
-        default: 'pending_signature',
+        default: 'pending_approval',
         required: true
     },
     userSignature: String,

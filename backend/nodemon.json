@@ -4,7 +4,6 @@
     "rest.js",
     "db.js",
     "models.js",
-    "ghl.js",
     "shared"
   ],
   "ignore": [

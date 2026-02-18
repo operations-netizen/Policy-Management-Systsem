@@ -5,7 +5,7 @@ import { createServer } from "http";
 import { createRestRouter } from "../rest.js";
 import { serveStatic, setupVite } from "./vite.js";
 import { connectDB } from "../models.js";
-import { ensureDbSchemaVersion } from "../db.js";
+import { ensureDbSchemaVersion, migrateLegacyPolicyPendingSignatures } from "../db.js";
 import { logger } from "./logger.js";
 import { API_SYNC_VERSION, DB_SCHEMA_VERSION } from "../shared/sync.js";
 async function startServer() {
@@ -19,6 +19,12 @@ async function startServer() {
     else {
         logger.info(
             `[Sync] API ${API_SYNC_VERSION}: DB schema ${dbSchemaState.currentVersion}/${dbSchemaState.requiredVersion} (compatible=${dbSchemaState.compatible})`,
+        );
+    }
+    const policyMigration = await migrateLegacyPolicyPendingSignatures();
+    if (policyMigration.modifiedCount > 0) {
+        logger.info(
+            `[Migration] Converted ${policyMigration.modifiedCount}/${policyMigration.matchedCount} legacy policy requests from pending_signature to pending_approval.`,
         );
     }
     const app = express();

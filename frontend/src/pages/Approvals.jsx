@@ -42,7 +42,7 @@ const statusConfig = (status) => {
       };
     case "pending_signature":
       return {
-        label: "Pending Signature",
+        label: "Pending HOD",
         className: "bg-slate-100 text-slate-700 border-slate-200",
         icon: Clock,
       };
@@ -154,8 +154,8 @@ export default function Approvals() {
   const sortedRequests = (pendingRequests || []).slice().sort((a, b) => {
     const priority = {
       pending_approval: 0,
+      pending_signature: 0,
       pending_employee_approval: 1,
-      pending_signature: 2,
       approved: 3,
       rejected_by_hod: 4,
       rejected_by_employee: 5,
@@ -173,7 +173,9 @@ export default function Approvals() {
   });
 
   const pendingCount = (pendingRequests || []).filter((request) =>
-    isManager ? request.status === "pending_approval" : request.status === "pending_employee_approval",
+    isManager
+      ? request.status === "pending_approval" || request.status === "pending_signature"
+      : request.status === "pending_employee_approval",
   ).length;
   const totalPendingStageCount = (pendingRequests || []).filter((request) =>
     ["pending_approval", "pending_employee_approval", "pending_signature"].includes(request.status),
@@ -281,7 +283,7 @@ export default function Approvals() {
                 const StatusIcon = statusMeta.icon;
                 const requestCurrency = request.currency || getUserCurrency(request.user);
                 const isActionable = isManager
-                  ? request.status === "pending_approval"
+                  ? request.status === "pending_approval" || request.status === "pending_signature"
                   : request.status === "pending_employee_approval";
                 const isApproved = request.status === "approved";
                 const isRejected = request.status?.startsWith("rejected");

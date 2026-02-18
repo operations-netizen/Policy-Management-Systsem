@@ -371,7 +371,7 @@ var CreditRequestSchema = new Schema({
       "rejected_by_employee",
       "rejected_by_hod"
     ],
-    default: "pending_signature",
+    default: "pending_approval",
     required: true
   },
   userSignature: String,
@@ -968,6 +968,17 @@ async function updateCreditRequest(id, updates) {
   await ensureConnection();
   await CreditRequest.findByIdAndUpdate(id, { $set: updates });
 }
+async function migrateLegacyPolicyPendingSignatures() {
+  await ensureConnection();
+  const result = await CreditRequest.updateMany(
+    { type: "policy", status: "pending_signature" },
+    { $set: { status: "pending_approval" } }
+  );
+  return {
+    matchedCount: result.matchedCount || 0,
+    modifiedCount: result.modifiedCount || 0
+  };
+}
 async function ensureWallet(userId) {
   await ensureConnection();
   const user = await User.findById(userId).select("currency employeeType").lean();
@@ -1454,89 +1465,6 @@ async function authenticateRequest(req) {
   }
   const { password, ...safeUser } = user;
   return { ...safeUser, id: user._id?.toString() ?? userId };
-}
-
-// ghl.js
-var GHL_API_KEY = "pit-6e8fd509-31e7-44fd-8182-bf77af82250a";
-var GHL_LOCATION_ID = "2xEjfVQAkuHg30MBhtW1";
-var GHL_API_VERSION = "2021-07-28";
-var API_BASE = "https://services.leadconnectorhq.com";
-function ghlHeaders() {
-  return {
-    Authorization: `Bearer ${GHL_API_KEY}`,
-    Version: GHL_API_VERSION,
-    "Content-Type": "application/json",
-    Accept: "application/json",
-    LocationId: GHL_LOCATION_ID
-  };
-}
-async function ghlJson(path6, { method = "GET", body } = {}) {
-  const res = await fetch(`${API_BASE}${path6}`, {
-    method,
-    headers: ghlHeaders(),
-    body: body ? JSON.stringify(body) : void 0
-  });
-  const text = await res.text();
-  let data;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = { raw: text };
-  }
-  if (!res.ok) {
-    const msg = data?.message || data?.error || JSON.stringify(data);
-    throw new Error(`GHL ${res.status} ${res.statusText}: ${msg}`);
-  }
-  return data;
-}
-async function upsertContactByEmail(email) {
-  const data = await ghlJson("/contacts/upsert", {
-    method: "POST",
-    body: {
-      email,
-      locationId: GHL_LOCATION_ID
-    }
-  });
-  const contactId = data?.contact?.id || data?.contact?._id || data?.id || data?._id;
-  if (!contactId) {
-    throw new Error(`Upsert succeeded but contactId not found in response: ${JSON.stringify(data)}`);
-  }
-  return contactId;
-}
-async function addTag(contactId, tag) {
-  await ghlJson(`/contacts/${contactId}/tags`, {
-    method: "POST",
-    body: { tags: [tag] }
-  });
-}
-async function updateContactCustomFields(contactId, customFields) {
-  await ghlJson(`/contacts/${contactId}`, {
-    method: "PUT",
-    body: {
-      customFields
-    }
-  });
-}
-async function createFreelancerDocument(email, name, amount, projectDetails, currency) {
-  try {
-    console.log(`[GHL] Creating document for ${email}`);
-    const contactId = await upsertContactByEmail(email);
-    console.log(`[GHL] Contact ID: ${contactId}`);
-    await updateContactCustomFields(contactId, {
-      name,
-      submit_feedback: `Amount: ${formatCurrencyAmount(amount, normalizeCurrency(currency))} | ${projectDetails}`
-    });
-    console.log(`[GHL] Updated custom fields`);
-    await addTag(contactId, "+offer-letter");
-    console.log(`[GHL] Added +offer-letter tag - workflow triggered`);
-    return contactId;
-  } catch (error) {
-    console.error(`[GHL] Error creating document:`, error);
-    throw error;
-  }
-}
-async function createSignatureDocument(email, name, amount, currency, projectDetails) {
-  return createFreelancerDocument(email, name, amount, projectDetails, currency);
 }
 
 // _core/email.js
@@ -3479,7 +3407,7 @@ function createRestRouter() {
           }
         }
       }
-      const status = input.type === "policy" ? isAdminOrHod ? "pending_signature" : "pending_approval" : "pending_approval";
+      const status = "pending_approval";
       const timelineLog = [
         buildTimelineEntry({
           step: "REQUEST_INITIATED",
@@ -3529,7 +3457,7 @@ function createRestRouter() {
       await createNotification({
         userId: input.userId,
         title: "Credit request created",
-        message: input.type === "policy" ? isAdminOrHod ? "A policy-based credit request is awaiting your signature." : "A policy credit request has been submitted and is pending HOD approval." : "A freelancer credit request has been submitted and is pending HOD approval.",
+        message: input.type === "policy" ? "A policy credit request has been submitted and is pending HOD approval." : "A freelancer credit request has been submitted and is pending HOD approval.",
         type: "info",
         actionUrl: "/transactions"
       });
@@ -3577,29 +3505,6 @@ function createRestRouter() {
           });
         } catch (error) {
           console.warn("[Email] Failed to send HOD policy email:", error?.message || error);
-        }
-      }
-      if (input.type === "policy" && !isAdminOrHod) {
-        res.json({ success: true, message: "Policy request created and sent to HOD for approval." });
-        return;
-      }
-      if (input.type === "policy") {
-        try {
-          await createSignatureDocument(
-            user.email || "",
-            user.name || "",
-            input.amount,
-            requestCurrency,
-            `Policy: ${input.policyId} | Notes: ${input.notes || "N/A"} | Breakdown: ${input.calculationBreakdown || "N/A"}`
-          );
-          res.json({
-            success: true,
-            message: "Credit request created. Signature request sent to employee."
-          });
-          return;
-        } catch (error) {
-          console.error("GHL document creation failed:", error);
-          throw new HttpError(500, "Failed to create signature document");
         }
       }
       res.json({ success: true, message: "Credit request created and sent to HOD for approval." });
@@ -3712,8 +3617,11 @@ function createRestRouter() {
       if (!request) {
         throw NotFoundError("Not found");
       }
-      if (request.status !== "pending_approval") {
-        throw BadRequestError("Only pending approvals can be approved.");
+      const canApproveByHod = request.status === "pending_approval" || request.status === "pending_signature";
+      if (!canApproveByHod) {
+        throw BadRequestError(
+          `Only pending approvals can be approved. Current status: ${request.status || "unknown"}.`
+        );
       }
       const requestCurrency = normalizeCurrency(request.currency);
       if (request.type === "freelancer") {
@@ -3819,8 +3727,11 @@ function createRestRouter() {
       if (!request) {
         throw NotFoundError("Not found");
       }
-      if (request.status !== "pending_approval") {
-        throw BadRequestError("Only pending approvals can be rejected.");
+      const canRejectByHod = request.status === "pending_approval" || request.status === "pending_signature";
+      if (!canRejectByHod) {
+        throw BadRequestError(
+          `Only pending approvals can be rejected. Current status: ${request.status || "unknown"}.`
+        );
       }
       const timelineLog = appendTimelineEntry(
         request.timelineLog,
@@ -4701,43 +4612,6 @@ function createRestRouter() {
       });
     })
   );
-  router.post(
-    "/ghl/document-webhook",
-    asyncHandler(async (req, res) => {
-      const input = parseInput(
-        z.object({
-          email: z.string().email().optional(),
-          contact: z.object({ email: z.string().email() }).optional(),
-          contactEmail: z.string().email().optional(),
-          status: z.string().optional()
-        }),
-        req.body
-      );
-      const email = (input.email || input.contact?.email || input.contactEmail || "").trim().toLowerCase();
-      if (!email) {
-        throw BadRequestError("Email missing in webhook payload");
-      }
-      console.log(`[GHL Webhook] Document completed for: ${email}`);
-      const user = await getUserByEmail(email);
-      if (!user) {
-        console.error(`[GHL Webhook] User not found: ${email}`);
-        throw NotFoundError("User not found");
-      }
-      const requests = await getCreditRequestsByUserId(user._id.toString());
-      const pendingRequest = requests.find((r) => r.status === "pending_signature");
-      if (!pendingRequest) {
-        console.error(`[GHL Webhook] No pending request found for: ${email}`);
-        res.json({ ok: true, message: "No pending request found" });
-        return;
-      }
-      await updateCreditRequest(pendingRequest._id.toString(), {
-        status: "pending_approval",
-        userSignedAt: /* @__PURE__ */ new Date()
-      });
-      console.log(`[GHL Webhook] Updated request ${pendingRequest._id} to pending_approval`);
-      res.json({ ok: true, message: "Status updated successfully" });
-    })
-  );
   return router;
 }
 
@@ -4801,6 +4675,12 @@ async function startServer() {
   } else {
     logger.info(
       `[Sync] API ${API_SYNC_VERSION}: DB schema ${dbSchemaState.currentVersion}/${dbSchemaState.requiredVersion} (compatible=${dbSchemaState.compatible})`
+    );
+  }
+  const policyMigration = await migrateLegacyPolicyPendingSignatures();
+  if (policyMigration.modifiedCount > 0) {
+    logger.info(
+      `[Migration] Converted ${policyMigration.modifiedCount}/${policyMigration.matchedCount} legacy policy requests from pending_signature to pending_approval.`
     );
   }
   const app = express3();

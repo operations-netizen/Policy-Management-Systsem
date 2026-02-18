@@ -14,7 +14,6 @@ import {
     UnauthorizedError,
 } from "./shared/_core/errors.js";
 import * as db from "./db.js";
-import { createSignatureDocument } from "./ghl.js";
 import {
     sendHodFreelancerRequestEmail,
     sendInitiatorFreelancerRejectionEmail,
@@ -1283,12 +1282,7 @@ export function createRestRouter() {
                     }
                 }
             }
-            const status =
-                input.type === "policy"
-                    ? isAdminOrHod
-                        ? "pending_signature"
-                        : "pending_approval"
-                    : "pending_approval";
+            const status = "pending_approval";
             const timelineLog = [
                 buildTimelineEntry({
                     step: "REQUEST_INITIATED",
@@ -1340,9 +1334,7 @@ export function createRestRouter() {
                 title: "Credit request created",
                 message:
                     input.type === "policy"
-                        ? isAdminOrHod
-                            ? "A policy-based credit request is awaiting your signature."
-                            : "A policy credit request has been submitted and is pending HOD approval."
+                        ? "A policy credit request has been submitted and is pending HOD approval."
                         : "A freelancer credit request has been submitted and is pending HOD approval.",
                 type: "info",
                 actionUrl: "/transactions",
@@ -1395,30 +1387,6 @@ export function createRestRouter() {
                 }
                 catch (error) {
                     console.warn("[Email] Failed to send HOD policy email:", error?.message || error);
-                }
-            }
-            if (input.type === "policy" && !isAdminOrHod) {
-                res.json({ success: true, message: "Policy request created and sent to HOD for approval." });
-                return;
-            }
-            if (input.type === "policy") {
-                try {
-                    await createSignatureDocument(
-                        user.email || "",
-                        user.name || "",
-                        input.amount,
-                        requestCurrency,
-                        `Policy: ${input.policyId} | Notes: ${input.notes || "N/A"} | Breakdown: ${input.calculationBreakdown || "N/A"}`,
-                    );
-                    res.json({
-                        success: true,
-                        message: "Credit request created. Signature request sent to employee.",
-                    });
-                    return;
-                }
-                catch (error) {
-                    console.error("GHL document creation failed:", error);
-                    throw new HttpError(500, "Failed to create signature document");
                 }
             }
             res.json({ success: true, message: "Credit request created and sent to HOD for approval." });
@@ -1534,8 +1502,12 @@ export function createRestRouter() {
             if (!request) {
                 throw NotFoundError("Not found");
             }
-            if (request.status !== "pending_approval") {
-                throw BadRequestError("Only pending approvals can be approved.");
+            const canApproveByHod =
+                request.status === "pending_approval" || request.status === "pending_signature";
+            if (!canApproveByHod) {
+                throw BadRequestError(
+                    `Only pending approvals can be approved. Current status: ${request.status || "unknown"}.`,
+                );
             }
             const requestCurrency = normalizeCurrency(request.currency);
             if (request.type === "freelancer") {
@@ -1642,8 +1614,12 @@ export function createRestRouter() {
             if (!request) {
                 throw NotFoundError("Not found");
             }
-            if (request.status !== "pending_approval") {
-                throw BadRequestError("Only pending approvals can be rejected.");
+            const canRejectByHod =
+                request.status === "pending_approval" || request.status === "pending_signature";
+            if (!canRejectByHod) {
+                throw BadRequestError(
+                    `Only pending approvals can be rejected. Current status: ${request.status || "unknown"}.`,
+                );
             }
             const timelineLog = appendTimelineEntry(
                 request.timelineLog,
@@ -2593,45 +2569,6 @@ export function createRestRouter() {
                     requests: requestSummaries.length,
                 },
             });
-        }),
-    );
-
-    // ==================== GHL WEBHOOK ====================
-    router.post(
-        "/ghl/document-webhook",
-        asyncHandler(async (req, res) => {
-            const input = parseInput(
-                z.object({
-                    email: z.string().email().optional(),
-                    contact: z.object({ email: z.string().email() }).optional(),
-                    contactEmail: z.string().email().optional(),
-                    status: z.string().optional(),
-                }),
-                req.body,
-            );
-            const email = (input.email || input.contact?.email || input.contactEmail || "").trim().toLowerCase();
-            if (!email) {
-                throw BadRequestError("Email missing in webhook payload");
-            }
-            console.log(`[GHL Webhook] Document completed for: ${email}`);
-            const user = await db.getUserByEmail(email);
-            if (!user) {
-                console.error(`[GHL Webhook] User not found: ${email}`);
-                throw NotFoundError("User not found");
-            }
-            const requests = await db.getCreditRequestsByUserId(user._id.toString());
-            const pendingRequest = requests.find((r) => r.status === "pending_signature");
-            if (!pendingRequest) {
-                console.error(`[GHL Webhook] No pending request found for: ${email}`);
-                res.json({ ok: true, message: "No pending request found" });
-                return;
-            }
-            await db.updateCreditRequest(pendingRequest._id.toString(), {
-                status: "pending_approval",
-                userSignedAt: new Date(),
-            });
-            console.log(`[GHL Webhook] Updated request ${pendingRequest._id} to pending_approval`);
-            res.json({ ok: true, message: "Status updated successfully" });
         }),
     );
 
