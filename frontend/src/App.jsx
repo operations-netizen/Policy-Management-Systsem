@@ -23,7 +23,11 @@ import { useEffect } from "react";
 import { toast } from "sonner";
 import { FRONTEND_SYNC_VERSION_REQUIRED } from "@shared/sync";
 
-const API_BASE = (import.meta?.env?.VITE_API_URL || "").trim().replace(/\/+$/, "");
+const DEV_API_FALLBACK = "http://localhost:3001";
+const API_BASE = (
+    import.meta?.env?.VITE_API_URL
+    || (import.meta?.env?.DEV ? DEV_API_FALLBACK : "")
+).trim().replace(/\/+$/, "");
 
 function Router() {
     const { isAuthenticated, loading } = useAuth();

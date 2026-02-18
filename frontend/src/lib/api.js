@@ -30,7 +30,11 @@ export const setSessionToken = (token) => {
     }
 };
 
-const API_BASE = (import.meta?.env?.VITE_API_URL || "").trim().replace(/\/+$/, "");
+const DEV_API_FALLBACK = "http://localhost:3001";
+const API_BASE = (
+    import.meta?.env?.VITE_API_URL
+    || (import.meta?.env?.DEV ? DEV_API_FALLBACK : "")
+).trim().replace(/\/+$/, "");
 
 const buildUrl = (path, query) => {
     const base = API_BASE;

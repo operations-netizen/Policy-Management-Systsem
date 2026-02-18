@@ -137,11 +137,14 @@ function DashboardLayoutContent({ children, setSidebarWidth }) {
   const isManager = user?.role === "admin" || user?.role === "hod";
 
   const { data: unreadData } = api.notifications.getUnreadCount.useQuery(undefined, {
-    refetchInterval: 10000,
+    enabled: !!user,
+    retry: false,
+    refetchInterval: (query) => (query.state.status === "error" ? 60000 : 10000),
     refetchIntervalInBackground: true,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: (query) => query.state.status !== "error",
     refetchOnReconnect: true,
     refetchOnMount: "always",
+    meta: { silentError: true },
   });
 
   const { data: initiatorTeam } = api.team.getMyTeam.useQuery(undefined, {
